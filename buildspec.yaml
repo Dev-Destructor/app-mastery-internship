@@ -1,0 +1,29 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws --version
+      - $(aws ecr get-login --region $AWS_DEFAULT_REGION --no-include-email)
+      - REPOSITORY_URI=*********************************************
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=${COMMIT_HASH:=latest}
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker image...
+      - make -C demo-docker-config build
+      - echo Generating task definition file...
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker image...
+      - make -C demo-docker-config push
+      - printf '[{"ImageURI":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > imageDetail.json
+      - printf '[{"family":"app-mastery-nginx-taskdef","networkMode":"awsvpc","containerDefinitions":[{"name":"app-mastery-nginx","image":"%s","portMappings":[{"containerPort":80,"hostPort":80,"protocol":"tcp"}],"essential":true}],"requiresCompatibilities":["FARGATE"],"cpu":"256","memory":"512","executionRoleArn":"*****************************************************************"}]' $REPOSITORY_URI:$IMAGE_TAG > taskDef.json
+
+artifacts:
+  files:
+    - imageDetail.json
+    - taskDef.json
